@@ -181,9 +181,11 @@
                 <div class="space-y-4 pt-2">
 
                     <!-- Shape Toggle -->
-                    <div class="flex bg-gray-800 p-1 rounded-lg">
-                        <button id="btnBox" class="flex-1 py-2 sm:py-1 text-sm sm:text-xs font-medium rounded-md bg-gray-600 text-white shadow transition-all">🧊 Cube</button>
-                        <button id="btnCyl" class="flex-1 py-2 sm:py-1 text-sm sm:text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all">⭕ Circle</button>
+                    <div class="grid grid-cols-2 gap-1 bg-gray-800 p-1 rounded-lg">
+                        <button id="btnBox" class="py-2 sm:py-1 text-sm sm:text-xs font-medium rounded-md bg-gray-600 text-white shadow transition-all">🧊</button>
+                        <button id="btnCyl" class="py-2 sm:py-1 text-sm sm:text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all">⭕</button>
+                        <button id="btnSphere" class="py-2 sm:py-1 text-sm sm:text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all">🔮</button>
+                        <button id="btnCone" class="py-2 sm:py-1 text-sm sm:text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all">🔺</button>
                     </div>
 
                     <!-- Resolution -->
@@ -287,13 +289,13 @@
             resolution: 64,
             extrusion: 0.0,
             spacing: 0.1,
-            shape: 'box', // 'box' or 'cylinder'
+            shape: 'box', // 'box', 'cylinder', 'sphere', 'cone'
             imageData: null
         };
 
         // Three.js Globals
         let scene, camera, renderer, controls, mesh;
-        let geometryBox, geometryCyl, material;
+        let geometryBox, geometryCyl, geometrySphere, geometryCone, material;
         const colorHelper = new THREE.Color();
         const dummy = new THREE.Object3D();
         let controlsVisible = false;
@@ -311,6 +313,8 @@
             loader: document.getElementById('loader-overlay'),
             btnBox: document.getElementById('btnBox'),
             btnCyl: document.getElementById('btnCyl'),
+            btnSphere: document.getElementById('btnSphere'),
+            btnCone: document.getElementById('btnCone'),
             mobileToggle: document.getElementById('mobile-controls-toggle'),
             controlsPanel: document.getElementById('controls-panel'),
             toggleIcon: document.getElementById('toggle-icon'),
@@ -380,9 +384,15 @@
             geometryBox = new THREE.BoxGeometry(1, 1, 1);
             // Move pivot to bottom for scaling
             geometryBox.translate(0, 0.5, 0);
-            
+
             geometryCyl = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
             geometryCyl.translate(0, 0.5, 0);
+
+            geometrySphere = new THREE.SphereGeometry(0.5, 12, 8);
+            geometrySphere.translate(0, 0.5, 0);
+
+            geometryCone = new THREE.ConeGeometry(0.5, 1, 12);
+            geometryCone.translate(0, 0.5, 0);
 
             // Material - Matte plastic look to show colors well
             material = new THREE.MeshStandardMaterial({
@@ -424,6 +434,8 @@
 
             ui.btnBox.addEventListener('click', () => setShape('box'));
             ui.btnCyl.addEventListener('click', () => setShape('cylinder'));
+            ui.btnSphere.addEventListener('click', () => setShape('sphere'));
+            ui.btnCone.addEventListener('click', () => setShape('cone'));
 
             ui.dl.addEventListener('click', downloadModel);
 
@@ -627,14 +639,27 @@
 
         function setShape(shape) {
             state.shape = shape;
-            // Toggle UI styles
+
+            // Reset all buttons to inactive state
+            const inactiveClass = "py-2 sm:py-1 text-sm sm:text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all";
+            const activeClass = "py-2 sm:py-1 text-sm sm:text-xs font-medium rounded-md bg-gray-600 text-white shadow transition-all";
+
+            ui.btnBox.className = inactiveClass;
+            ui.btnCyl.className = inactiveClass;
+            ui.btnSphere.className = inactiveClass;
+            ui.btnCone.className = inactiveClass;
+
+            // Set active button
             if(shape === 'box') {
-                ui.btnBox.className = "flex-1 py-1 text-xs font-medium rounded-md bg-gray-600 text-white shadow transition-all";
-                ui.btnCyl.className = "flex-1 py-1 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all";
-            } else {
-                ui.btnCyl.className = "flex-1 py-1 text-xs font-medium rounded-md bg-gray-600 text-white shadow transition-all";
-                ui.btnBox.className = "flex-1 py-1 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all";
+                ui.btnBox.className = activeClass;
+            } else if(shape === 'cylinder') {
+                ui.btnCyl.className = activeClass;
+            } else if(shape === 'sphere') {
+                ui.btnSphere.className = activeClass;
+            } else if(shape === 'cone') {
+                ui.btnCone.className = activeClass;
             }
+
             updateMesh();
         }
 
@@ -717,7 +742,18 @@
                 mesh.dispose();
             }
 
-            const geom = state.shape === 'box' ? geometryBox : geometryCyl;
+            let geom;
+            if (state.shape === 'box') {
+                geom = geometryBox;
+            } else if (state.shape === 'cylinder') {
+                geom = geometryCyl;
+            } else if (state.shape === 'sphere') {
+                geom = geometrySphere;
+            } else if (state.shape === 'cone') {
+                geom = geometryCone;
+            } else {
+                geom = geometryBox; // fallback
+            }
             const count = state.imageData.length;
             
             mesh = new THREE.InstancedMesh(geom, material, count);
