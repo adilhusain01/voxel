@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Vibrant Voxelizer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Outfit', sans-serif; background-color: #09090b; color: #ffffff; overflow: hidden; }
         #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 0; }
-        
+
         /* Glassmorphism UI */
         .glass {
             background: rgba(15, 15, 20, 0.8);
@@ -18,9 +18,18 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
         }
+
+        /* Mobile Optimizations */
+        @media (max-width: 640px) {
+            .glass {
+                background: rgba(15, 15, 20, 0.95);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+            }
+        }
         
         /* Range Inputs */
-        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; }
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
             background: #6366f1; cursor: pointer; margin-top: -6px; box-shadow: 0 0 10px rgba(99,102,241,0.5);
@@ -36,6 +45,99 @@
             animation: rotation 1s linear infinite;
         }
         @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Mobile-First Responsive Utilities */
+        .mobile-hidden { display: none; }
+        @media (min-width: 768px) {
+            .mobile-hidden { display: block; }
+        }
+
+        .mobile-only { display: block; }
+        @media (min-width: 768px) {
+            .mobile-only { display: none; }
+        }
+
+        /* Touch-friendly interactions */
+        @media (max-width: 640px) {
+            input[type=range]::-webkit-slider-thumb {
+                height: 20px;
+                width: 20px;
+                margin-top: -8px;
+            }
+
+            input[type=range]::-webkit-slider-runnable-track {
+                height: 6px;
+            }
+
+            button, .cursor-pointer {
+                min-height: 44px;
+                min-width: 44px;
+            }
+
+            /* Prevent zoom on input focus */
+            input, select, textarea {
+                font-size: 16px;
+            }
+        }
+
+        /* Collapsible Controls */
+        .controls-collapsed {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .controls-expanded {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .control-toggle {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* All devices: slide left/right */
+        .controls-collapsed {
+            transform: translateX(100%);
+        }
+
+        .controls-expanded {
+            transform: translateX(0);
+        }
+
+        /* Bottom Control Buttons */
+        .control-btn {
+            background: rgba(15, 15, 20, 0.9);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-btn:hover {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: rgba(99, 102, 241, 0.3);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 25px rgba(99, 102, 241, 0.2);
+        }
+
+        .control-btn:active {
+            transform: translateY(0) scale(0.95);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-btn.active {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: rgba(99, 102, 241, 0.5);
+            color: #a5b4fc;
+        }
+
+        @media (max-width: 640px) {
+            .control-btn {
+                min-width: 52px;
+                min-height: 52px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -43,80 +145,117 @@
     <div id="canvas-container"></div>
 
     <!-- Overlay UI -->
-    <div class="absolute inset-0 pointer-events-none flex flex-col p-4 md:p-6 z-10">
-        
-        <!-- Header -->
+    <div class="absolute inset-0 pointer-events-none flex flex-col p-2 sm:p-4 md:p-6 z-10">
+
+        <!-- Header & Controls -->
         <div class="flex justify-between items-start">
-            <div class="glass p-5 rounded-2xl pointer-events-auto">
-                <h1 class="text-3xl font-bold text-white tracking-tight">
+            <!-- Title -->
+            <div class="glass p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl pointer-events-auto">
+                <h1 class="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-tight">
                     <span class="text-indigo-500">Voxel</span>Art
                 </h1>
-                <p class="text-sm text-gray-400 mt-1">Turn images into 3D colored blocks</p>
+                <p class="text-xs sm:text-sm text-gray-400 mt-1 mobile-hidden">Turn images into 3D colored blocks</p>
             </div>
 
-            <!-- Controls -->
-            <div class="glass p-5 rounded-2xl w-80 space-y-5 pointer-events-auto max-h-[90vh] overflow-y-auto">
+            <!-- Right Side: Toggle + Controls -->
+            <div class="flex flex-col items-end space-y-3">
+                <!-- Controls Toggle Button -->
+                <button id="mobile-controls-toggle" class="glass p-3 rounded-xl pointer-events-auto flex items-center justify-center">
+                    <svg id="toggle-icon" class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+
+                <!-- Controls Panel -->
+                <div id="controls-panel" class="glass control-toggle controls-expanded p-4 md:p-5 rounded-xl sm:rounded-2xl w-full max-w-xs md:w-80 space-y-4 md:space-y-5 pointer-events-auto max-h-[75vh] md:max-h-[80vh] overflow-y-auto fixed md:relative top-20 md:top-0 right-2 md:right-0 z-40">
                 
                 <!-- Upload -->
                 <div class="relative group">
-                    <label class="block w-full h-10 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg cursor-pointer flex items-center justify-center transition-all font-medium text-sm shadow-lg shadow-indigo-500/20">
-                        <span>Upload Image</span>
+                    <label class="block w-full h-12 sm:h-10 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg cursor-pointer flex items-center justify-center transition-all font-medium text-sm shadow-lg shadow-indigo-500/20">
+                        <span>📁 Upload Image</span>
                         <input type="file" id="imageInput" accept="image/*" class="hidden" />
                     </label>
                 </div>
 
                 <!-- Settings -->
                 <div class="space-y-4 pt-2">
-                    
+
                     <!-- Shape Toggle -->
                     <div class="flex bg-gray-800 p-1 rounded-lg">
-                        <button id="btnBox" class="flex-1 py-1 text-xs font-medium rounded-md bg-gray-600 text-white shadow transition-all">Cube</button>
-                        <button id="btnCyl" class="flex-1 py-1 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all">Circle</button>
+                        <button id="btnBox" class="flex-1 py-2 sm:py-1 text-sm sm:text-xs font-medium rounded-md bg-gray-600 text-white shadow transition-all">🧊 Cube</button>
+                        <button id="btnCyl" class="flex-1 py-2 sm:py-1 text-sm sm:text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all">⭕ Circle</button>
                     </div>
 
                     <!-- Resolution -->
                     <div>
-                        <div class="flex justify-between text-xs font-medium text-gray-400 mb-2">
-                            <span>Resolution</span>
-                            <span id="resVal" class="text-indigo-400">64 px</span>
+                        <div class="flex justify-between text-xs sm:text-xs font-medium text-gray-400 mb-3 sm:mb-2">
+                            <span>📐 Resolution</span>
+                            <span id="resVal" class="text-indigo-400 font-semibold">64 px</span>
                         </div>
-                        <input type="range" id="resolution" min="32" max="128" value="64" step="16" class="w-full">
+                        <input type="range" id="resolution" min="32" max="128" value="64" step="16" class="w-full h-2">
                     </div>
 
                     <!-- Extrusion -->
                     <div>
-                        <div class="flex justify-between text-xs font-medium text-gray-400 mb-2">
-                            <span>Height Map</span>
-                            <span id="heightVal" class="text-indigo-400">0.0</span>
+                        <div class="flex justify-between text-xs sm:text-xs font-medium text-gray-400 mb-3 sm:mb-2">
+                            <span>📊 Height Map</span>
+                            <span id="heightVal" class="text-indigo-400 font-semibold">0.0</span>
                         </div>
-                        <input type="range" id="heightAmt" min="0" max="10" value="0" step="0.5" class="w-full">
+                        <input type="range" id="heightAmt" min="0" max="10" value="0" step="0.5" class="w-full h-2">
                     </div>
 
                     <!-- Spacing -->
                     <div>
-                        <div class="flex justify-between text-xs font-medium text-gray-400 mb-2">
-                            <span>Gap</span>
-                            <span id="spacingVal" class="text-indigo-400">0.1</span>
+                        <div class="flex justify-between text-xs sm:text-xs font-medium text-gray-400 mb-3 sm:mb-2">
+                            <span>📏 Gap</span>
+                            <span id="spacingVal" class="text-indigo-400 font-semibold">0.1</span>
                         </div>
-                        <input type="range" id="spacing" min="0" max="0.8" value="0.1" step="0.05" class="w-full">
+                        <input type="range" id="spacing" min="0" max="0.8" value="0.1" step="0.05" class="w-full h-2">
                     </div>
                 </div>
 
                 <!-- Actions -->
                 <div class="pt-2 border-t border-gray-700/50">
-                    <button id="downloadBtn" class="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <button id="downloadBtn" class="w-full py-3 sm:py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                        Download Model
+                        📥 Download Model
                     </button>
                 </div>
             </div>
+            </div>
         </div>
 
-        <!-- Hint -->
-        <div class="mt-auto text-center pointer-events-none">
-            <span class="glass px-4 py-2 rounded-full text-xs text-gray-400">
-                🖱️ Left: Rotate &nbsp;•&nbsp; 🖱️ Right: Pan &nbsp;•&nbsp; 🖱️ Scroll: Zoom
-            </span>
+    </div>
+
+    <!-- Bottom Camera Controls -->
+    <div class="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-20 pointer-events-auto">
+        <div class="flex items-center gap-2 sm:gap-3">
+            <!-- Zoom Out -->
+            <button id="zoom-out" class="control-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-lg sm:text-xl">
+                −
+            </button>
+
+            <!-- Rotate Left -->
+            <button id="rotate-left" class="control-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-lg sm:text-xl">
+                ‹
+            </button>
+
+            <!-- Auto-rotate Toggle -->
+            <button id="auto-rotate-toggle" class="control-btn active w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white">
+                <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+            </button>
+
+            <!-- Rotate Right -->
+            <button id="rotate-right" class="control-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-lg sm:text-xl">
+                ›
+            </button>
+
+            <!-- Zoom In -->
+            <button id="zoom-in" class="control-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-lg sm:text-xl">
+                +
+            </button>
         </div>
     </div>
 
@@ -157,6 +296,7 @@
         let geometryBox, geometryCyl, material;
         const colorHelper = new THREE.Color();
         const dummy = new THREE.Object3D();
+        let controlsVisible = false;
 
         // DOM
         const ui = {
@@ -170,7 +310,15 @@
             dl: document.getElementById('downloadBtn'),
             loader: document.getElementById('loader-overlay'),
             btnBox: document.getElementById('btnBox'),
-            btnCyl: document.getElementById('btnCyl')
+            btnCyl: document.getElementById('btnCyl'),
+            mobileToggle: document.getElementById('mobile-controls-toggle'),
+            controlsPanel: document.getElementById('controls-panel'),
+            toggleIcon: document.getElementById('toggle-icon'),
+            zoomIn: document.getElementById('zoom-in'),
+            zoomOut: document.getElementById('zoom-out'),
+            rotateLeft: document.getElementById('rotate-left'),
+            rotateRight: document.getElementById('rotate-right'),
+            autoRotateToggle: document.getElementById('auto-rotate-toggle')
         };
 
         init();
@@ -198,6 +346,21 @@
             controls.enableDamping = true;
             controls.autoRotate = true;
             controls.autoRotateSpeed = 0.8;
+
+            // Touch-friendly controls
+            controls.touches = {
+                ONE: THREE.TOUCH.ROTATE,
+                TWO: THREE.TOUCH.DOLLY_PAN
+            };
+            controls.enablePan = true;
+            controls.panSpeed = 1.2;
+            controls.rotateSpeed = 1.0;
+            controls.zoomSpeed = 1.2;
+
+            // Disable auto-rotate on manual interaction
+            controls.addEventListener('start', () => {
+                disableAutoRotate();
+            });
 
             // Lighting (Studio Setup)
             const ambient = new THREE.AmbientLight(0xffffff, 0.7); // High ambient for true color
@@ -236,7 +399,7 @@
 
         function setupUI() {
             ui.input.addEventListener('change', handleUpload);
-            
+
             ui.res.addEventListener('input', (e) => {
                 ui.resVal.textContent = e.target.value + " px";
                 state.resolution = parseInt(e.target.value);
@@ -249,20 +412,217 @@
                 state.extrusion = parseFloat(e.target.value);
                 ui.heightVal.textContent = state.extrusion.toFixed(1);
                 updateMesh();
-                controls.autoRotate = false;
+                disableAutoRotate();
             });
 
             ui.spacing.addEventListener('input', (e) => {
                 state.spacing = parseFloat(e.target.value);
                 ui.spacingVal.textContent = state.spacing.toFixed(2);
                 updateMesh();
-                controls.autoRotate = false;
+                disableAutoRotate();
             });
 
             ui.btnBox.addEventListener('click', () => setShape('box'));
             ui.btnCyl.addEventListener('click', () => setShape('cylinder'));
 
             ui.dl.addEventListener('click', downloadModel);
+
+            // Controls toggle (for all devices)
+            controlsVisible = true; // Always start with controls visible
+            ui.mobileToggle.addEventListener('click', toggleControls);
+
+            // Close controls when clicking outside (mobile only)
+            document.addEventListener('click', (e) => {
+                if (window.innerWidth < 768 && controlsVisible &&
+                    !ui.controlsPanel.contains(e.target) &&
+                    !ui.mobileToggle.contains(e.target)) {
+                    hideControls();
+                }
+            });
+
+            // Handle resize - maintain control state across breakpoints
+            window.addEventListener('resize', () => {
+                // Just update the visibility state without forcing changes
+                updateControlsVisibility();
+            });
+
+            // Initialize controls state
+            updateControlsVisibility();
+
+            // Bottom control buttons
+            setupBottomControls();
+        }
+
+        function setupBottomControls() {
+            // Debounce variables to prevent rapid clicking
+            let zoomDebounce = false;
+            let rotateDebounce = false;
+
+            // Zoom controls - gentle increments
+            ui.zoomIn.addEventListener('click', () => {
+                if (zoomDebounce) return;
+                zoomDebounce = true;
+                smoothZoom(0.9); // Gentle zoom in (10% closer)
+                setTimeout(() => { zoomDebounce = false; }, 120); // Debounce for smooth experience
+            });
+
+            ui.zoomOut.addEventListener('click', () => {
+                if (zoomDebounce) return;
+                zoomDebounce = true;
+                smoothZoom(1.1); // Gentle zoom out (10% farther)
+                setTimeout(() => { zoomDebounce = false; }, 120); // Debounce for smooth experience
+            });
+
+            // Rotation controls - smaller increments
+            ui.rotateLeft.addEventListener('click', () => {
+                if (rotateDebounce) return;
+                rotateDebounce = true;
+                smoothRotate(-Math.PI / 8); // Rotate left 22.5 degrees
+                setTimeout(() => { rotateDebounce = false; }, 220); // Debounce for smooth experience
+            });
+
+            ui.rotateRight.addEventListener('click', () => {
+                if (rotateDebounce) return;
+                rotateDebounce = true;
+                smoothRotate(Math.PI / 8); // Rotate right 22.5 degrees
+                setTimeout(() => { rotateDebounce = false; }, 220); // Debounce for smooth experience
+            });
+
+            // Auto-rotate toggle
+            ui.autoRotateToggle.addEventListener('click', () => {
+                toggleAutoRotate();
+            });
+        }
+
+        function smoothZoom(factor) {
+            const currentDistance = camera.position.distanceTo(controls.target);
+            const newDistance = currentDistance * factor;
+
+            // Limit zoom range
+            const minDistance = 10;
+            const maxDistance = 200;
+            if (newDistance < minDistance || newDistance > maxDistance) return;
+
+            const direction = camera.position.clone().sub(controls.target).normalize();
+            const newPosition = controls.target.clone().add(direction.multiplyScalar(newDistance));
+
+            // Smooth animation - faster for more responsive feel
+            const startPos = camera.position.clone();
+            const duration = 100; // ms - faster animation
+            const startTime = Date.now();
+
+            function animate() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 2); // Ease out quadratic - smoother
+
+                camera.position.lerpVectors(startPos, newPosition, eased);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                }
+            }
+            animate();
+        }
+
+        function smoothRotate(angle) {
+            disableAutoRotate();
+
+            const startAzimuth = controls.getAzimuthalAngle();
+            const targetAzimuth = startAzimuth + angle;
+            const duration = 200; // ms - faster rotation
+            const startTime = Date.now();
+
+            function animate() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 2); // Ease out quadratic - smoother
+
+                const currentAzimuth = startAzimuth + (angle * eased);
+
+                // Use OrbitControls' internal methods for proper rotation
+                const spherical = new THREE.Spherical();
+                spherical.setFromVector3(camera.position.clone().sub(controls.target));
+                spherical.theta = currentAzimuth; // Set the azimuthal angle
+
+                const newPosition = new THREE.Vector3();
+                newPosition.setFromSpherical(spherical);
+                newPosition.add(controls.target);
+
+                camera.position.copy(newPosition);
+                camera.lookAt(controls.target);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    // Ensure we end exactly at the target angle
+                    spherical.theta = targetAzimuth;
+                    newPosition.setFromSpherical(spherical);
+                    newPosition.add(controls.target);
+                    camera.position.copy(newPosition);
+                    camera.lookAt(controls.target);
+                }
+            }
+            animate();
+        }
+
+        function toggleAutoRotate() {
+            controls.autoRotate = !controls.autoRotate;
+            updateAutoRotateUI();
+        }
+
+        function disableAutoRotate() {
+            controls.autoRotate = false;
+            updateAutoRotateUI();
+        }
+
+        function updateAutoRotateUI() {
+            if (controls.autoRotate) {
+                ui.autoRotateToggle.classList.add('active');
+            } else {
+                ui.autoRotateToggle.classList.remove('active');
+            }
+        }
+
+        function toggleControls() {
+            if (controlsVisible) {
+                hideControls();
+            } else {
+                showControls();
+            }
+        }
+
+        function showControls() {
+            controlsVisible = true;
+            ui.controlsPanel.classList.remove('controls-collapsed');
+            ui.controlsPanel.classList.add('controls-expanded');
+            updateToggleIcon();
+        }
+
+        function hideControls() {
+            controlsVisible = false;
+            ui.controlsPanel.classList.remove('controls-expanded');
+            ui.controlsPanel.classList.add('controls-collapsed');
+            updateToggleIcon();
+        }
+
+        function updateToggleIcon() {
+            if (controlsVisible) {
+                // Show X (close) icon
+                ui.toggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>';
+            } else {
+                // Show hamburger (open) icon
+                ui.toggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>';
+            }
+        }
+
+        function updateControlsVisibility() {
+            // This function ensures the controls display correctly after resize
+            if (controlsVisible) {
+                showControls();
+            } else {
+                hideControls();
+            }
         }
 
         function setShape(shape) {
@@ -342,7 +702,10 @@
             updateMesh();
             ui.loader.classList.add('hidden');
             ui.dl.disabled = false;
+
+            // Re-enable auto-rotate after successful upload
             controls.autoRotate = true;
+            updateAutoRotateUI();
         }
 
         function updateMesh() {
