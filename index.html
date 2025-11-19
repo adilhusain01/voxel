@@ -216,8 +216,42 @@
                     </div>
                 </div>
 
+                <!-- Effects Section -->
+                <div class="space-y-4 pt-2 border-t border-gray-700/50">
+                    <div class="text-xs font-medium text-gray-400 mb-3">✨ Effects</div>
+
+                    <!-- Material Mode -->
+                    <div class="grid grid-cols-3 gap-1 bg-gray-800 p-1 rounded-lg">
+                        <button id="btnMatte" class="py-2 sm:py-1 text-xs font-medium rounded-md bg-gray-600 text-white shadow transition-all">Clay</button>
+                        <button id="btnMetal" class="py-2 sm:py-1 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all">Metal</button>
+                        <button id="btnGlass" class="py-2 sm:py-1 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all">Glass</button>
+                    </div>
+
+                    <!-- Explosion Slider -->
+                    <div>
+                        <div class="flex justify-between text-xs sm:text-xs font-medium text-gray-400 mb-3 sm:mb-2">
+                            <span>💥 Deconstruct</span>
+                            <span id="explodeVal" class="text-indigo-400 font-semibold">0.0</span>
+                        </div>
+                        <input type="range" id="explode" min="0" max="3" value="0" step="0.1" class="w-full h-2">
+                    </div>
+
+                    <!-- Bloom Slider -->
+                    <div>
+                        <div class="flex justify-between text-xs sm:text-xs font-medium text-gray-400 mb-3 sm:mb-2">
+                            <span>✨ Glow</span>
+                            <span id="bloomVal" class="text-indigo-400 font-semibold">0.5</span>
+                        </div>
+                        <input type="range" id="bloom" min="0" max="2.5" value="0.5" step="0.1" class="w-full h-2">
+                    </div>
+                </div>
+
                 <!-- Actions -->
-                <div class="pt-2 border-t border-gray-700/50">
+                <div class="pt-2 border-t border-gray-700/50 space-y-2">
+                    <button id="screenshotBtn" class="w-full py-3 sm:py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        📸 Screenshot
+                    </button>
                     <button id="downloadBtn" class="w-full py-3 sm:py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                         📥 Download Model
@@ -283,6 +317,9 @@
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
         // State
         const state = {
@@ -290,12 +327,23 @@
             extrusion: 0.0,
             spacing: 0.1,
             shape: 'box', // 'box', 'cylinder', 'sphere', 'cone'
+            materialMode: 'matte', // 'matte', 'metal', 'glass'
+            explosion: 0,
+            bloomStrength: 0.5,
             imageData: null
         };
 
         // Three.js Globals
-        let scene, camera, renderer, controls, mesh;
-        let geometryBox, geometryCyl, geometrySphere, geometryCone, material;
+        let scene, camera, renderer, composer, controls, mesh;
+        let geometryBox, geometryCyl, geometrySphere, geometryCone;
+        let bloomPass, starField;
+
+        // Materials Cache
+        const materials = {
+            matte: null,
+            metal: null,
+            glass: null
+        };
         const colorHelper = new THREE.Color();
         const dummy = new THREE.Object3D();
         let controlsVisible = false;
@@ -315,6 +363,14 @@
             btnCyl: document.getElementById('btnCyl'),
             btnSphere: document.getElementById('btnSphere'),
             btnCone: document.getElementById('btnCone'),
+            btnMatte: document.getElementById('btnMatte'),
+            btnMetal: document.getElementById('btnMetal'),
+            btnGlass: document.getElementById('btnGlass'),
+            explode: document.getElementById('explode'),
+            explodeVal: document.getElementById('explodeVal'),
+            bloom: document.getElementById('bloom'),
+            bloomVal: document.getElementById('bloomVal'),
+            screenshotBtn: document.getElementById('screenshotBtn'),
             mobileToggle: document.getElementById('mobile-controls-toggle'),
             controlsPanel: document.getElementById('controls-panel'),
             toggleIcon: document.getElementById('toggle-icon'),
@@ -333,12 +389,17 @@
             scene.background = new THREE.Color(0x1a1a20);
             
             // Renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: true,
+                preserveDrawingBuffer: true // For screenshots
+            });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            renderer.outputColorSpace = THREE.SRGBColorSpace; // Critical for correct colors
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.toneMapping = THREE.ReinhardToneMapping;
             document.getElementById('canvas-container').appendChild(renderer.domElement);
 
             // Camera
@@ -398,17 +459,75 @@
             geometryCone = new THREE.ConeGeometry(0.5, 1, 12);
             geometryCone.translate(0, 0.5, 0);
 
-            // Material - Matte plastic look to show colors well
-            material = new THREE.MeshStandardMaterial({
+            // Materials
+            materials.matte = new THREE.MeshStandardMaterial({
                 color: 0xffffff,
                 roughness: 0.8,
-                metalness: 0.0,
+                metalness: 0.1
             });
+
+            materials.metal = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                roughness: 0.2,
+                metalness: 0.8
+            });
+
+            materials.glass = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                roughness: 0.1,
+                transmission: 0.9,
+                thickness: 0.5,
+                clearcoat: 1.0
+            });
+
+            // Post-Processing Setup
+            const renderScene = new RenderPass(scene, camera);
+
+            bloomPass = new UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                1.5, // strength
+                0.4, // radius
+                0.85 // threshold
+            );
+            bloomPass.threshold = 0.2;
+            bloomPass.strength = state.bloomStrength;
+            bloomPass.radius = 0.5;
+
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+
+            // Create starfield background
+            createStarField();
 
             // Events
             window.addEventListener('resize', onResize);
             setupUI();
             animate();
+        }
+
+        function createStarField() {
+            const geometry = new THREE.BufferGeometry();
+            const vertices = [];
+
+            for (let i = 0; i < 2000; i++) {
+                vertices.push(
+                    (Math.random() - 0.5) * 400,
+                    (Math.random() - 0.5) * 400,
+                    (Math.random() - 0.5) * 400
+                );
+            }
+
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            const material = new THREE.PointsMaterial({
+                color: 0x8888aa,
+                size: 0.5,
+                transparent: true,
+                opacity: 0.8
+            });
+
+            starField = new THREE.Points(geometry, material);
+            scene.add(starField);
         }
 
         function setupUI() {
@@ -440,6 +559,28 @@
             ui.btnCyl.addEventListener('click', () => setShape('cylinder'));
             ui.btnSphere.addEventListener('click', () => setShape('sphere'));
             ui.btnCone.addEventListener('click', () => setShape('cone'));
+
+            // Material buttons
+            ui.btnMatte.addEventListener('click', () => setMaterial('matte'));
+            ui.btnMetal.addEventListener('click', () => setMaterial('metal'));
+            ui.btnGlass.addEventListener('click', () => setMaterial('glass'));
+
+            // Effects sliders
+            ui.explode.addEventListener('input', (e) => {
+                state.explosion = parseFloat(e.target.value);
+                ui.explodeVal.textContent = state.explosion.toFixed(1);
+                updateMeshTransforms();
+                disableAutoRotate();
+            });
+
+            ui.bloom.addEventListener('input', (e) => {
+                state.bloomStrength = parseFloat(e.target.value);
+                ui.bloomVal.textContent = state.bloomStrength.toFixed(1);
+                bloomPass.strength = state.bloomStrength;
+            });
+
+            // Screenshot button
+            ui.screenshotBtn.addEventListener('click', takeScreenshot);
 
             ui.dl.addEventListener('click', downloadModel);
 
@@ -667,6 +808,29 @@
             updateMesh();
         }
 
+        function setMaterial(materialType) {
+            state.materialMode = materialType;
+
+            // Reset all material buttons
+            const inactiveClass = "py-2 sm:py-1 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all";
+            const activeClass = "py-2 sm:py-1 text-xs font-medium rounded-md bg-gray-600 text-white shadow transition-all";
+
+            ui.btnMatte.className = inactiveClass;
+            ui.btnMetal.className = inactiveClass;
+            ui.btnGlass.className = inactiveClass;
+
+            // Set active button
+            if(materialType === 'matte') {
+                ui.btnMatte.className = activeClass;
+            } else if(materialType === 'metal') {
+                ui.btnMetal.className = activeClass;
+            } else if(materialType === 'glass') {
+                ui.btnGlass.className = activeClass;
+            }
+
+            updateMesh();
+        }
+
         function handleUpload(e) {
             const file = e.target.files[0];
             if(!file) return;
@@ -716,12 +880,14 @@
                     // Only take opaque pixels
                     if (a > 50) {
                         // Calculate brightness for height map
-                        const brightness = (r + g + b) / 765; 
-                        
+                        const brightness = (r + g + b) / 765;
+
                         state.imageData.push({
                             x: x - w/2, // center
                             z: y - h/2, // center
-                            color: `rgb(${r},${g},${b})`,
+                            r: r / 255,
+                            g: g / 255,
+                            b: b / 255,
                             brightness: brightness
                         });
                     }
@@ -758,40 +924,61 @@
             } else {
                 geom = geometryBox; // fallback
             }
+
+            const material = materials[state.materialMode];
             const count = state.imageData.length;
-            
+
             mesh = new THREE.InstancedMesh(geom, material, count);
             mesh.castShadow = true;
             mesh.receiveShadow = true;
 
-            const gap = state.spacing;
-            const voxelSize = 1 - gap;
-            
+            // Set colors
             state.imageData.forEach((data, i) => {
-                // Position
-                const heightY = 1 + (data.brightness * state.extrusion);
-                
-                dummy.position.set(data.x, 0, data.z);
-                
-                // Scale
-                // Y scale depends on extrusion. X/Z depend on gap.
-                // Since pivot is at bottom (y=0), scaling Y makes it grow up.
-                dummy.scale.set(voxelSize, heightY, voxelSize);
-                
-                dummy.updateMatrix();
-                mesh.setMatrixAt(i, dummy.matrix);
-
-                // Color
-                // Using setStyle handles sRGB -> Linear conversion automatically in most cases,
-                // but explicit handling ensures it matches the CSS color of the image.
-                colorHelper.setStyle(data.color); 
+                colorHelper.setRGB(data.r, data.g, data.b);
                 mesh.setColorAt(i, colorHelper);
             });
 
-            mesh.instanceMatrix.needsUpdate = true;
             mesh.instanceColor.needsUpdate = true;
 
             scene.add(mesh);
+            updateMeshTransforms();
+        }
+
+        function updateMeshTransforms() {
+            if (!mesh || !state.imageData) return;
+
+            const gap = state.spacing;
+            const voxelSize = 1 - gap;
+            const explode = state.explosion;
+
+            state.imageData.forEach((data, i) => {
+                // Height from brightness
+                const h = data.brightness * state.extrusion;
+                const scaleY = 1 + h;
+
+                // Deconstruction logic: push voxels away from center
+                const explodeX = data.x * explode * 2;
+                const explodeZ = data.z * explode * 2;
+                const explodeY = (Math.sin(data.x * 0.1) + Math.cos(data.z * 0.1)) * explode * 10;
+
+                dummy.position.set(
+                    data.x + explodeX,
+                    0 + explodeY,
+                    data.z + explodeZ
+                );
+
+                // Scale based on shape
+                if (state.shape === 'sphere') {
+                    dummy.scale.set(voxelSize, voxelSize + (h * 0.5), voxelSize);
+                } else {
+                    dummy.scale.set(voxelSize, scaleY, voxelSize);
+                }
+
+                dummy.updateMatrix();
+                mesh.setMatrixAt(i, dummy.matrix);
+            });
+
+            mesh.instanceMatrix.needsUpdate = true;
         }
 
         function downloadModel() {
@@ -805,16 +992,33 @@
             link.click();
         }
 
+        function takeScreenshot() {
+            composer.render();
+            const link = document.createElement('a');
+            link.download = 'voxel-screenshot.png';
+            link.href = renderer.domElement.toDataURL('image/png');
+            link.click();
+        }
+
         function onResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
         }
 
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
-            renderer.render(scene, camera);
+
+            // Rotate starfield slowly
+            if (starField) {
+                starField.rotation.y += 0.0005;
+                starField.rotation.x += 0.0002;
+            }
+
+            // Use composer for post-processing
+            composer.render();
         }
     </script>
 </body>
