@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vibrant Voxelizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; background-color: #09090b; color: #ffffff; overflow: hidden; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 0; }
+        
+        /* Glassmorphism UI */
+        .glass {
+            background: rgba(15, 15, 20, 0.8);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* Range Inputs */
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: #6366f1; cursor: pointer; margin-top: -6px; box-shadow: 0 0 10px rgba(99,102,241,0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: #334155; border-radius: 2px;
+        }
+
+        .loader {
+            width: 48px; height: 48px;
+            border: 5px solid #FFF; border-bottom-color: #6366f1; border-radius: 50%;
+            display: inline-block; box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <!-- Overlay UI -->
+    <div class="absolute inset-0 pointer-events-none flex flex-col p-4 md:p-6 z-10">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-start">
+            <div class="glass p-5 rounded-2xl pointer-events-auto">
+                <h1 class="text-3xl font-bold text-white tracking-tight">
+                    <span class="text-indigo-500">Voxel</span>Art
+                </h1>
+                <p class="text-sm text-gray-400 mt-1">Turn images into 3D colored blocks</p>
+            </div>
+
+            <!-- Controls -->
+            <div class="glass p-5 rounded-2xl w-80 space-y-5 pointer-events-auto max-h-[90vh] overflow-y-auto">
+                
+                <!-- Upload -->
+                <div class="relative group">
+                    <label class="block w-full h-10 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg cursor-pointer flex items-center justify-center transition-all font-medium text-sm shadow-lg shadow-indigo-500/20">
+                        <span>Upload Image</span>
+                        <input type="file" id="imageInput" accept="image/*" class="hidden" />
+                    </label>
+                </div>
+
+                <!-- Settings -->
+                <div class="space-y-4 pt-2">
+                    
+                    <!-- Shape Toggle -->
+                    <div class="flex bg-gray-800 p-1 rounded-lg">
+                        <button id="btnBox" class="flex-1 py-1 text-xs font-medium rounded-md bg-gray-600 text-white shadow transition-all">Cube</button>
+                        <button id="btnCyl" class="flex-1 py-1 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all">Circle</button>
+                    </div>
+
+                    <!-- Resolution -->
+                    <div>
+                        <div class="flex justify-between text-xs font-medium text-gray-400 mb-2">
+                            <span>Resolution</span>
+                            <span id="resVal" class="text-indigo-400">64 px</span>
+                        </div>
+                        <input type="range" id="resolution" min="32" max="128" value="64" step="16" class="w-full">
+                    </div>
+
+                    <!-- Extrusion -->
+                    <div>
+                        <div class="flex justify-between text-xs font-medium text-gray-400 mb-2">
+                            <span>Height Map</span>
+                            <span id="heightVal" class="text-indigo-400">0.0</span>
+                        </div>
+                        <input type="range" id="heightAmt" min="0" max="10" value="0" step="0.5" class="w-full">
+                    </div>
+
+                    <!-- Spacing -->
+                    <div>
+                        <div class="flex justify-between text-xs font-medium text-gray-400 mb-2">
+                            <span>Gap</span>
+                            <span id="spacingVal" class="text-indigo-400">0.1</span>
+                        </div>
+                        <input type="range" id="spacing" min="0" max="0.8" value="0.1" step="0.05" class="w-full">
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="pt-2 border-t border-gray-700/50">
+                    <button id="downloadBtn" class="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Download Model
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hint -->
+        <div class="mt-auto text-center pointer-events-none">
+            <span class="glass px-4 py-2 rounded-full text-xs text-gray-400">
+                🖱️ Left: Rotate &nbsp;•&nbsp; 🖱️ Right: Pan &nbsp;•&nbsp; 🖱️ Scroll: Zoom
+            </span>
+        </div>
+    </div>
+
+    <!-- Loader -->
+    <div id="loader-overlay" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center hidden backdrop-blur-sm">
+        <div class="text-center">
+            <span class="loader"></span>
+            <p class="mt-4 text-sm text-gray-300 font-medium">Voxelizing...</p>
+        </div>
+    </div>
+
+    <!-- Three.js Imports -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
+
+        // State
+        const state = {
+            resolution: 64,
+            extrusion: 0.0,
+            spacing: 0.1,
+            shape: 'box', // 'box' or 'cylinder'
+            imageData: null
+        };
+
+        // Three.js Globals
+        let scene, camera, renderer, controls, mesh;
+        let geometryBox, geometryCyl, material;
+        const colorHelper = new THREE.Color();
+        const dummy = new THREE.Object3D();
+
+        // DOM
+        const ui = {
+            input: document.getElementById('imageInput'),
+            res: document.getElementById('resolution'),
+            resVal: document.getElementById('resVal'),
+            height: document.getElementById('heightAmt'),
+            heightVal: document.getElementById('heightVal'),
+            spacing: document.getElementById('spacing'),
+            spacingVal: document.getElementById('spacingVal'),
+            dl: document.getElementById('downloadBtn'),
+            loader: document.getElementById('loader-overlay'),
+            btnBox: document.getElementById('btnBox'),
+            btnCyl: document.getElementById('btnCyl')
+        };
+
+        init();
+
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a20);
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.outputColorSpace = THREE.SRGBColorSpace; // Critical for correct colors
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 60, 60);
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.8;
+
+            // Lighting (Studio Setup)
+            const ambient = new THREE.AmbientLight(0xffffff, 0.7); // High ambient for true color
+            scene.add(ambient);
+
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            mainLight.position.set(20, 30, 20);
+            mainLight.castShadow = true;
+            mainLight.shadow.mapSize.set(2048, 2048);
+            scene.add(mainLight);
+
+            const fillLight = new THREE.DirectionalLight(0xebf4ff, 0.5);
+            fillLight.position.set(-20, 10, -20);
+            scene.add(fillLight);
+
+            // Geometries
+            geometryBox = new THREE.BoxGeometry(1, 1, 1);
+            // Move pivot to bottom for scaling
+            geometryBox.translate(0, 0.5, 0);
+            
+            geometryCyl = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
+            geometryCyl.translate(0, 0.5, 0);
+
+            // Material - Matte plastic look to show colors well
+            material = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                roughness: 0.8,
+                metalness: 0.0,
+            });
+
+            // Events
+            window.addEventListener('resize', onResize);
+            setupUI();
+            animate();
+        }
+
+        function setupUI() {
+            ui.input.addEventListener('change', handleUpload);
+            
+            ui.res.addEventListener('input', (e) => {
+                ui.resVal.textContent = e.target.value + " px";
+                state.resolution = parseInt(e.target.value);
+            });
+            ui.res.addEventListener('change', () => {
+                if(ui.input.files[0]) handleUpload({ target: ui.input });
+            });
+
+            ui.height.addEventListener('input', (e) => {
+                state.extrusion = parseFloat(e.target.value);
+                ui.heightVal.textContent = state.extrusion.toFixed(1);
+                updateMesh();
+                controls.autoRotate = false;
+            });
+
+            ui.spacing.addEventListener('input', (e) => {
+                state.spacing = parseFloat(e.target.value);
+                ui.spacingVal.textContent = state.spacing.toFixed(2);
+                updateMesh();
+                controls.autoRotate = false;
+            });
+
+            ui.btnBox.addEventListener('click', () => setShape('box'));
+            ui.btnCyl.addEventListener('click', () => setShape('cylinder'));
+
+            ui.dl.addEventListener('click', downloadModel);
+        }
+
+        function setShape(shape) {
+            state.shape = shape;
+            // Toggle UI styles
+            if(shape === 'box') {
+                ui.btnBox.className = "flex-1 py-1 text-xs font-medium rounded-md bg-gray-600 text-white shadow transition-all";
+                ui.btnCyl.className = "flex-1 py-1 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all";
+            } else {
+                ui.btnCyl.className = "flex-1 py-1 text-xs font-medium rounded-md bg-gray-600 text-white shadow transition-all";
+                ui.btnBox.className = "flex-1 py-1 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all";
+            }
+            updateMesh();
+        }
+
+        function handleUpload(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+
+            ui.loader.classList.remove('hidden');
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => processImage(img);
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function processImage(img) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Calculate dimensions maintaining aspect ratio
+            const maxDim = state.resolution;
+            let w = img.width;
+            let h = img.height;
+            const aspect = w / h;
+
+            if (w > maxDim || h > maxDim) {
+                if (aspect > 1) { w = maxDim; h = Math.floor(maxDim / aspect); }
+                else { h = maxDim; w = Math.floor(maxDim * aspect); }
+            }
+
+            canvas.width = w;
+            canvas.height = h;
+            ctx.drawImage(img, 0, 0, w, h);
+
+            const data = ctx.getImageData(0, 0, w, h).data;
+            state.imageData = [];
+
+            // Extract Pixel Data
+            for(let y = 0; y < h; y++) {
+                for(let x = 0; x < w; x++) {
+                    const i = (y * w + x) * 4;
+                    const r = data[i];
+                    const g = data[i+1];
+                    const b = data[i+2];
+                    const a = data[i+3];
+
+                    // Only take opaque pixels
+                    if (a > 50) {
+                        // Calculate brightness for height map
+                        const brightness = (r + g + b) / 765; 
+                        
+                        state.imageData.push({
+                            x: x - w/2, // center
+                            z: y - h/2, // center
+                            color: `rgb(${r},${g},${b})`,
+                            brightness: brightness
+                        });
+                    }
+                }
+            }
+
+            updateMesh();
+            ui.loader.classList.add('hidden');
+            ui.dl.disabled = false;
+            controls.autoRotate = true;
+        }
+
+        function updateMesh() {
+            if(!state.imageData) return;
+
+            // Clean old mesh
+            if(mesh) {
+                scene.remove(mesh);
+                mesh.dispose();
+            }
+
+            const geom = state.shape === 'box' ? geometryBox : geometryCyl;
+            const count = state.imageData.length;
+            
+            mesh = new THREE.InstancedMesh(geom, material, count);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            const gap = state.spacing;
+            const voxelSize = 1 - gap;
+            
+            state.imageData.forEach((data, i) => {
+                // Position
+                const heightY = 1 + (data.brightness * state.extrusion);
+                
+                dummy.position.set(data.x, 0, data.z);
+                
+                // Scale
+                // Y scale depends on extrusion. X/Z depend on gap.
+                // Since pivot is at bottom (y=0), scaling Y makes it grow up.
+                dummy.scale.set(voxelSize, heightY, voxelSize);
+                
+                dummy.updateMatrix();
+                mesh.setMatrixAt(i, dummy.matrix);
+
+                // Color
+                // Using setStyle handles sRGB -> Linear conversion automatically in most cases,
+                // but explicit handling ensures it matches the CSS color of the image.
+                colorHelper.setStyle(data.color); 
+                mesh.setColorAt(i, colorHelper);
+            });
+
+            mesh.instanceMatrix.needsUpdate = true;
+            mesh.instanceColor.needsUpdate = true;
+
+            scene.add(mesh);
+        }
+
+        function downloadModel() {
+            if(!mesh) return;
+            const exporter = new OBJExporter();
+            const result = exporter.parse(scene);
+            const blob = new Blob([result], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'voxel-art.obj';
+            link.click();
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
