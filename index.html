@@ -194,7 +194,7 @@
                             <span>📐 Resolution</span>
                             <span id="resVal" class="text-indigo-400 font-semibold">64 px</span>
                         </div>
-                        <input type="range" id="resolution" min="32" max="128" value="64" step="16" class="w-full h-2">
+                        <input type="range" id="resolution" min="16" max="512" value="64" step="16" class="w-full h-2">
                     </div>
 
                     <!-- Extrusion -->
@@ -403,8 +403,8 @@
             document.getElementById('canvas-container').appendChild(renderer.domElement);
 
             // Camera
-            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 80, 80);
+            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 5000);
+            camera.position.set(0, 120, 120);
 
             // Controls
             controls = new OrbitControls(camera, renderer.domElement);
@@ -422,9 +422,9 @@
             controls.rotateSpeed = 1.0;
             controls.zoomSpeed = 1.2;
 
-            // Set zoom limits to allow viewing large models
-            controls.minDistance = 5;
-            controls.maxDistance = 500;
+            // Set zoom limits to allow viewing very large models
+            controls.minDistance = 1;
+            controls.maxDistance = 2000;
 
             // Disable auto-rotate on manual interaction
             controls.addEventListener('start', () => {
@@ -655,9 +655,9 @@
             const currentDistance = camera.position.distanceTo(controls.target);
             const newDistance = currentDistance * factor;
 
-            // Limit zoom range - increased max distance for better mobile experience
-            const minDistance = 5;
-            const maxDistance = 500;
+            // Limit zoom range - massive range for ultra high-res models
+            const minDistance = 1;
+            const maxDistance = 2000;
             if (newDistance < minDistance || newDistance > maxDistance) return;
 
             const direction = camera.position.clone().sub(controls.target).normalize();
@@ -895,6 +895,10 @@
             }
 
             updateMesh();
+
+            // Auto-adjust camera distance based on model size
+            adjustCameraForModelSize();
+
             ui.loader.classList.add('hidden');
             ui.dl.disabled = false;
 
@@ -979,6 +983,53 @@
             });
 
             mesh.instanceMatrix.needsUpdate = true;
+        }
+
+        function adjustCameraForModelSize() {
+            if (!state.imageData) return;
+
+            // Calculate model bounds
+            let minX = Infinity, maxX = -Infinity;
+            let minZ = Infinity, maxZ = -Infinity;
+
+            state.imageData.forEach(data => {
+                minX = Math.min(minX, data.x);
+                maxX = Math.max(maxX, data.x);
+                minZ = Math.min(minZ, data.z);
+                maxZ = Math.max(maxZ, data.z);
+            });
+
+            // Calculate model size
+            const modelWidth = Math.max(maxX - minX, maxZ - minZ);
+            const modelHeight = state.extrusion > 0 ? state.extrusion * 10 : modelWidth * 0.5;
+
+            // Calculate ideal camera distance based on model size
+            const idealDistance = Math.max(modelWidth * 1.5, 120);
+            const maxDistance = Math.min(idealDistance, 800); // Cap for performance
+
+            // Smoothly move camera to ideal position
+            const direction = camera.position.clone().normalize();
+            const newPosition = direction.multiplyScalar(maxDistance);
+            newPosition.y = Math.max(newPosition.y, modelHeight + 50); // Ensure we're above the model
+
+            // Animate camera movement
+            const startPos = camera.position.clone();
+            const duration = 1000; // 1 second
+            const startTime = Date.now();
+
+            function animateCamera() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3); // Ease out cubic
+
+                camera.position.lerpVectors(startPos, newPosition, eased);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateCamera);
+                }
+            }
+
+            animateCamera();
         }
 
         function downloadModel() {
